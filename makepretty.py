@@ -79,9 +79,9 @@ def setup():
   text = 'HELLO WORLD'
   for date in convert_text(text):
     
-    if date > datetime.date(2013,9,16):
-      print date
-      pixel(user, repo, date)
+    # if date > datetime.date(2013,5,24):
+    print date
+    pixel(user, repo, date)
   
 
 
