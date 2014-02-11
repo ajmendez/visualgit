@@ -7,20 +7,41 @@ import datetime
 import calendar
 
 
+# Pixel map for character to pixel array.
+# top to bottom left to right.
+CHARMAP = {
+  'W':['100010', '100010', '100010', '101010', '010100'],
+  'H':['10010', '10010', '11110', '10010', '10010' ],
+  'O':['11110', '10010', '10010', '10010', '11110'],
+  'R':['11100', '10010', '11100', '10010', '10010'],
+  'D':['11100', '10010', '10010', '10010', '11100' ],
+  'E':['1110', '1000', '1100', '1000', '1110'],
+  'L':['1000', '1000', '1000', '1000', '1110' ],
+  ' ':['000', '000', '000', '000', '000'],
+}
+
+
+
+
+
 def create_tree(repo, tree, parent):
+  '''Create a tree in a repo object, a tree dictionary, and a parent hash.'''
   params = dict(
     base_tree=parent,
     tree=[tree]
   )
   headers, data = repo._requester.requestJsonAndCheck(
-              "POST",
-              repo.url + "/git/trees",
-              input=params,
-          )
+                        "POST",
+                        repo.url + "/git/trees",
+                        input=params,
+                    )
   return github.GitTree.GitTree(repo._requester, headers, data, 
                                 completed=True)
-  
+
+
 def create_commit(user, repo, message, tree, parent, date):
+  '''Build a commit.  Uses the user login and email as the commiter, and
+  then commits the tree with message to a parrent hash on a date.'''
   date = datetime.datetime.combine(date, 
                                    datetime.datetime.min.time()).isoformat()
   params = dict(
@@ -34,15 +55,16 @@ def create_commit(user, repo, message, tree, parent, date):
     )
   )
   headers, data = repo._requester.requestJsonAndCheck(
-      "POST",
-      repo.url + "/git/commits",
-      input=params,
-  )
+                        "POST",
+                        repo.url + "/git/commits",
+                        input=params,
+                    )
   return github.GitCommit.GitCommit(repo._requester, headers, data, completed=True)
 
 
 
 def pixel(user, repo, date):
+  '''Build a pixel commit for each date for a user on a repo.'''
   data = u'BLOB: {}'.format(date)
   blob = repo.create_git_blob(data, 'utf-8')
   
@@ -58,7 +80,7 @@ def pixel(user, repo, date):
   )
   tree = create_tree(repo, t, parent)
   
-  # create the commit
+  # create the commit -- break out the date from the standard function
   # commit = repo.create_git_commit(message, tree, parents)
   commit = create_commit(user, repo, message, tree.sha, parent, date)
   
@@ -67,32 +89,10 @@ def pixel(user, repo, date):
 
 
 
-def setup():
-  token, reponame = auth('github', ('token','reponame'))
-  # api = Github(username, password)
-  api = github.Github(token)
-  user = api.get_user()
-  repo = user.get_repo(reponame)
-  
-  # first test -- build a blob to commit
-  # cdate = datetime.date.today() - datetime.timedelta(days=1)
-  text = 'HELLO WORLD'
-  for date in convert_text(text):
-    
-    # if date > datetime.date(2013,5,24):
-    print date
-    pixel(user, repo, date)
-  
-
-
-
-
-
-
-
 
 def gen_reverse_date(year):
-  '''Generates either a None -- new week, or a day of the week.'''
+  '''Generates either a None -- new week, or a day of the week. This goes
+  back starting with the last day in a year.'''
   cal = calendar.Calendar(6)
   for month in reversed(cal.yeardatescalendar(year,1)): 
     for week in reversed(month[0]):
@@ -102,8 +102,9 @@ def gen_reverse_date(year):
         yield day
       
 def get_dates(ndate):
+  '''Generate a list of dates depending on the number of 
+  columns that are needed (ndate). '''
   today = datetime.date.today()
-  
   
   out = [[]]
   getDate = False
@@ -124,7 +125,6 @@ def get_dates(ndate):
       
       # add to the output
       if getDate and (day.year == year):
-        # out[-1].append(day)
         try:
           if day not in out[-2]:
             raise ValueError
@@ -138,29 +138,17 @@ def get_dates(ndate):
     # Keep going back in time unless we have gone too far
     year -= 1
     if year < 2010:
-      raise ValueError('Why are you going back in time?!')
+      raise ValueError('Why are you going this far back in time?!')
   return out
 
 
-CHARMAP = {
-  'H':['10010', '10010', '11110', '10010', '10010' ],
-  
-  'O':['11110', '10010', '10010', '10010', '11110'],
-  'R':['11100', '10010', '11100', '10010', '10010'],
-  'D':['11100', '10010', '10010', '10010', '11100' ],
-  'E':['1110', '1000', '1100', '1000', '1110'],
-  'L':['1000', '1000', '1000', '1000', '1110' ],
-  ' ':['000', '000', '000', '000', '000'],
-  'W':['100010', '100010', '100010', '101010', '010100'],
-}
 
 
 
 
 def convert_text(text):
+  '''Convert the string into a set of pixel arrays.'''
   nrows = len(''.join( CHARMAP[c.upper()][0] for c in text ) )
-  
-  
   out = []
   yoffset = 1
   xoffset = 2
@@ -177,16 +165,10 @@ def convert_text(text):
         if y == '1':
           out.append(rows[j][i])
       j -= 1
-    
-    # if k < len(text)-1:
-    #   for i in range(7):
-    #     rows[j][i] = None
-    #   j -= 1
-#     pprint(rows)
-  # return rows
   return out
 
 def debug_text(text):
+  '''Print to the screen to check that the char map looks right'''
   for c in text:
     for row in CHARMAP[c.upper()]:
       for col in row:
@@ -195,10 +177,16 @@ def debug_text(text):
     print
 
 
+def setup(text):
+  '''Seup the pixel diagram for a given text string.'''
+  token, reponame = auth('github', ('token','reponame'))
+  api = github.Github(token)
+  user = api.get_user()
+  repo = user.get_repo(reponame)
+  
+  for date in convert_text(text):
+    pixel(user, repo, date)
+
 
 if __name__ == '__main__':
-  from pysurvey import util
-  util.setup_stop
-  
-  
-  setup()
+  setup('HELLO WORLD')
